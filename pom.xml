@@ -19,5 +19,6 @@
         <module>retry-fluent-api</module>
         <module>retry-fluent-spring6</module>
         <module>retry-fluent-spring7</module>
+        <module>task-arbiter</module>
     </modules>
 </project>
