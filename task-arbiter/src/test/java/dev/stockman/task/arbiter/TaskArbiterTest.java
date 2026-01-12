@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DisplayNameGeneration;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.retry.RetryTemplate;
 import org.springframework.test.context.TestPropertySource;
@@ -94,6 +95,35 @@ public class TaskArbiterTest {
             Assertions.assertEquals("Executed task", result.result().get());
         }
 
+        @Test
+        void testTaskExecutesOnlyOnce() throws Throwable {
+            Retry.RetrySpec retrySpec = new SpringRetryTemplateAdapter(retryTemplate).named("testTaskNotCompletedThenExecute");
+
+            List<Integer> list = new ArrayList<>(List.of(1));
+            interface Foobar {
+                String foobar();
+            }
+            Foobar foobar = Mockito.mock(Foobar.class);
+            Mockito.when(foobar.foobar()).thenReturn("Executed task");
+
+            Supplier<String> taskToExecute = foobar::foobar;
+            Supplier<List<Integer>> fetchStatus = () -> list;
+            Function<List<Integer>, Boolean> checkState = s -> s.size() > 1;
+            Consumer<List<Integer>> updateState = s -> {
+                if (s.size() > 1) {
+                    throw new RuntimeException("Precondition failed");
+                }
+                s.add(1);
+            };
+
+            for (int i = 0; i < 5; i++) {
+                TaskArbiter.run(retrySpec, taskToExecute, fetchStatus, checkState, updateState);
+            }
+
+            Mockito.verify(foobar, Mockito.times(1)).foobar();
+
+        }
+
     }
 
     @Nested
@@ -149,6 +179,34 @@ public class TaskArbiterTest {
             var result = TaskArbiter.run(retrySpec, taskToExecute, fetchStatus, checkState, updateState);
 
             Assertions.assertEquals(2, result.size());
+        }
+
+        @Test
+        void testTaskExecutesOnlyOnce() throws Throwable {
+            Retry.RetrySpec retrySpec = new SpringRetryTemplateAdapter(retryTemplate).named("testTaskNotCompletedThenExecute");
+
+            List<Integer> list = new ArrayList<>(List.of(1));
+            interface Foobar {
+                void foobar();
+            }
+            Foobar foobar = Mockito.mock(Foobar.class);
+
+            Runnable taskToExecute = foobar::foobar;
+            Supplier<List<Integer>> fetchStatus = () -> list;
+            Function<List<Integer>, Boolean> checkState = s -> s.size() > 1;
+            Consumer<List<Integer>> updateState = s -> {
+                if (s.size() > 1) {
+                    throw new RuntimeException("Precondition failed");
+                }
+                s.add(1);
+            };
+
+            for (int i = 0; i < 5; i++) {
+                TaskArbiter.run(retrySpec, taskToExecute, fetchStatus, checkState, updateState);
+            }
+
+            Mockito.verify(foobar, Mockito.times(1)).foobar();
+
         }
     }
 }
